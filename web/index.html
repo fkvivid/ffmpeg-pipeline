@@ -140,7 +140,24 @@
                 xhr.onload = () => {
                     if (xhr.status === 200) {
                         const data = JSON.parse(xhr.responseText);
-                        statusText.textContent = `✅ Uploaded: ${data.filename} (${(data.size / 1024 / 1024).toFixed(1)} MB)`;
+                        const info = data.info;
+                        statusText.innerHTML = `
+      ✅ <strong>${info.filename}</strong><br>
+      <span style="color:#666;font-size:13px">
+        ${info.width}×${info.height} •
+        ${info.duration.toFixed(1)}s •
+        ${info.codec}
+      </span><br>
+      <span style="color:#4f9eff;font-size:13px;margin-top:8px;display:inline-block">
+        🎬 Job: <code>${data.job_id}</code>
+      </span><br>
+      <span style="color:#aaa;font-size:13px;margin-top:4px;display:inline-block">
+        🎯 Encoding: ${data.renditions.join(", ")}
+      </span><br>
+      <span style="color:#666;font-size:12px;margin-top:4px;display:inline-block">
+        Watch your terminal. Output: <code>./output/${data.job_id}/</code>
+      </span>
+    `;
                     } else {
                         statusText.textContent = `❌ Failed: ${xhr.responseText}`;
                     }
