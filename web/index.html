@@ -1,0 +1,154 @@
+<!doctype html>
+<html>
+    <head>
+        <title>ffmpeg-pipeline</title>
+        <style>
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                font-family: system-ui;
+                background: #0f0f0f;
+                color: #e5e5e5;
+                padding: 40px;
+                min-height: 100vh;
+            }
+            h1 {
+                color: #4f9eff;
+                margin-bottom: 24px;
+            }
+
+            #dropzone {
+                border: 2px dashed #333;
+                border-radius: 16px;
+                padding: 64px 32px;
+                text-align: center;
+                cursor: pointer;
+                transition: all 0.2s;
+                max-width: 600px;
+            }
+            #dropzone:hover,
+            #dropzone.drag {
+                border-color: #4f9eff;
+                background: rgba(79, 158, 255, 0.05);
+            }
+            #dropzone .icon {
+                font-size: 48px;
+                margin-bottom: 16px;
+            }
+            #dropzone h2 {
+                margin-bottom: 8px;
+                font-weight: 500;
+            }
+            #dropzone p {
+                color: #666;
+                font-size: 14px;
+            }
+            input[type="file"] {
+                display: none;
+            }
+
+            #status {
+                margin-top: 24px;
+                padding: 16px;
+                background: #161616;
+                border-radius: 8px;
+                max-width: 600px;
+                display: none;
+            }
+            #status.visible {
+                display: block;
+            }
+            .bar {
+                background: #222;
+                border-radius: 99px;
+                height: 6px;
+                overflow: hidden;
+                margin-top: 8px;
+            }
+            .bar-fill {
+                background: #4f9eff;
+                height: 100%;
+                width: 0%;
+                transition: width 0.3s;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>🎬 ffmpeg-pipeline</h1>
+
+        <div id="dropzone">
+            <div class="icon">📹</div>
+            <h2>Drop a video here</h2>
+            <p>or click to choose a file</p>
+            <input type="file" id="fileInput" accept="video/*" />
+        </div>
+
+        <div id="status">
+            <div id="statusText">Uploading...</div>
+            <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+        </div>
+
+        <script>
+            const dropzone = document.getElementById("dropzone");
+            const fileInput = document.getElementById("fileInput");
+            const status = document.getElementById("status");
+            const statusText = document.getElementById("statusText");
+            const barFill = document.getElementById("barFill");
+
+            // Click anywhere on dropzone to open file picker
+            dropzone.addEventListener("click", () => fileInput.click());
+
+            // File picker selection
+            fileInput.addEventListener("change", () => {
+                if (fileInput.files[0]) upload(fileInput.files[0]);
+            });
+
+            // Drag and drop
+            dropzone.addEventListener("dragover", (e) => {
+                e.preventDefault();
+                dropzone.classList.add("drag");
+            });
+            dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag"));
+            dropzone.addEventListener("drop", (e) => {
+                e.preventDefault();
+                dropzone.classList.remove("drag");
+                if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]);
+            });
+
+            function upload(file) {
+                const form = new FormData();
+                form.append("video", file);
+
+                status.classList.add("visible");
+                statusText.textContent = `Uploading ${file.name}...`;
+
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", "/api/upload");
+
+                // Track upload progress
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        const pct = ((e.loaded / e.total) * 100).toFixed(0);
+                        barFill.style.width = pct + "%";
+                        statusText.textContent = `Uploading ${file.name} — ${pct}%`;
+                    }
+                };
+
+                xhr.onload = () => {
+                    if (xhr.status === 200) {
+                        const data = JSON.parse(xhr.responseText);
+                        statusText.textContent = `✅ Uploaded: ${data.filename} (${(data.size / 1024 / 1024).toFixed(1)} MB)`;
+                    } else {
+                        statusText.textContent = `❌ Failed: ${xhr.responseText}`;
+                    }
+                };
+
+                xhr.onerror = () => (statusText.textContent = "❌ Network error");
+                xhr.send(form);
+            }
+        </script>
+    </body>
+</html>
