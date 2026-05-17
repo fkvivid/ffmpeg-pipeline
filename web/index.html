@@ -1,171 +1,182 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
-    <head>
-        <title>ffmpeg-pipeline</title>
-        <style>
-            * {
-                box-sizing: border-box;
-                margin: 0;
-                padding: 0;
-            }
-            body {
-                font-family: system-ui;
-                background: #0f0f0f;
-                color: #e5e5e5;
-                padding: 40px;
-                min-height: 100vh;
-            }
-            h1 {
-                color: #4f9eff;
-                margin-bottom: 24px;
-            }
+<head>
+  <title>ffmpeg-pipeline</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui; background: #0f0f0f; color: #e5e5e5; padding: 40px; min-height: 100vh; }
+    h1 { color: #4f9eff; margin-bottom: 24px; }
 
-            #dropzone {
-                border: 2px dashed #333;
-                border-radius: 16px;
-                padding: 64px 32px;
-                text-align: center;
-                cursor: pointer;
-                transition: all 0.2s;
-                max-width: 600px;
-            }
-            #dropzone:hover,
-            #dropzone.drag {
-                border-color: #4f9eff;
-                background: rgba(79, 158, 255, 0.05);
-            }
-            #dropzone .icon {
-                font-size: 48px;
-                margin-bottom: 16px;
-            }
-            #dropzone h2 {
-                margin-bottom: 8px;
-                font-weight: 500;
-            }
-            #dropzone p {
-                color: #666;
-                font-size: 14px;
-            }
-            input[type="file"] {
-                display: none;
-            }
+    #dropzone {
+      border: 2px dashed #333;
+      border-radius: 16px;
+      padding: 48px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      max-width: 600px;
+    }
+    #dropzone:hover, #dropzone.drag {
+      border-color: #4f9eff;
+      background: rgba(79,158,255,0.05);
+    }
+    #dropzone .icon { font-size: 36px; margin-bottom: 8px; }
+    #dropzone h2 { margin-bottom: 4px; font-weight: 500; font-size: 18px; }
+    #dropzone p { color: #666; font-size: 13px; }
+    input[type="file"] { display: none; }
 
-            #status {
-                margin-top: 24px;
-                padding: 16px;
-                background: #161616;
-                border-radius: 8px;
-                max-width: 600px;
-                display: none;
-            }
-            #status.visible {
-                display: block;
-            }
-            .bar {
-                background: #222;
-                border-radius: 99px;
-                height: 6px;
-                overflow: hidden;
-                margin-top: 8px;
-            }
-            .bar-fill {
-                background: #4f9eff;
-                height: 100%;
-                width: 0%;
-                transition: width 0.3s;
-            }
-        </style>
-    </head>
-    <body>
-        <h1>🎬 ffmpeg-pipeline</h1>
+    #status {
+      margin-top: 24px;
+      padding: 20px 24px;
+      background: #161616;
+      border: 1px solid #222;
+      border-radius: 12px;
+      max-width: 600px;
+      display: none;
+    }
+    #status.visible { display: block; }
+    #statusText { font-size: 14px; margin-bottom: 4px; }
 
-        <div id="dropzone">
-            <div class="icon">📹</div>
-            <h2>Drop a video here</h2>
-            <p>or click to choose a file</p>
-            <input type="file" id="fileInput" accept="video/*" />
-        </div>
+    .rendition {
+      margin-top: 14px;
+    }
+    .rendition-header {
+      display: flex; justify-content: space-between;
+      font-size: 12px; margin-bottom: 4px;
+    }
+    .rendition-name { color: #aaa; }
+    .rendition-pct { color: #4f9eff; font-weight: 500; }
+    .rendition-pct.done { color: #4ade80; }
+    .bar { background: #222; border-radius: 99px; height: 6px; overflow: hidden; }
+    .bar-fill {
+      background: #4f9eff; height: 100%; width: 0%;
+      transition: width 0.4s ease;
+    }
+    .bar-fill.done { background: #4ade80; }
 
-        <div id="status">
-            <div id="statusText">Uploading...</div>
-            <div class="bar"><div class="bar-fill" id="barFill"></div></div>
-        </div>
+    .upload-bar { margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>🎬 ffmpeg-pipeline</h1>
 
-        <script>
-            const dropzone = document.getElementById("dropzone");
-            const fileInput = document.getElementById("fileInput");
-            const status = document.getElementById("status");
-            const statusText = document.getElementById("statusText");
-            const barFill = document.getElementById("barFill");
+  <div id="dropzone">
+    <div class="icon">📹</div>
+    <h2>Drop a video here</h2>
+    <p>or click to choose</p>
+    <input type="file" id="fileInput" accept="video/*" />
+  </div>
 
-            // Click anywhere on dropzone to open file picker
-            dropzone.addEventListener("click", () => fileInput.click());
+  <div id="status">
+    <div id="statusText">Uploading...</div>
+    <div class="bar upload-bar"><div class="bar-fill" id="uploadBar"></div></div>
+    <div id="renditions"></div>
+  </div>
 
-            // File picker selection
-            fileInput.addEventListener("change", () => {
-                if (fileInput.files[0]) upload(fileInput.files[0]);
-            });
+  <script>
+    const dropzone = document.getElementById('dropzone')
+    const fileInput = document.getElementById('fileInput')
+    const status = document.getElementById('status')
+    const statusText = document.getElementById('statusText')
+    const uploadBar = document.getElementById('uploadBar')
+    const renditionsDiv = document.getElementById('renditions')
 
-            // Drag and drop
-            dropzone.addEventListener("dragover", (e) => {
-                e.preventDefault();
-                dropzone.classList.add("drag");
-            });
-            dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag"));
-            dropzone.addEventListener("drop", (e) => {
-                e.preventDefault();
-                dropzone.classList.remove("drag");
-                if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]);
-            });
+    dropzone.addEventListener('click', () => fileInput.click())
+    fileInput.addEventListener('change', () => { if (fileInput.files[0]) upload(fileInput.files[0]) })
 
-            function upload(file) {
-                const form = new FormData();
-                form.append("video", file);
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag') })
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'))
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault()
+      dropzone.classList.remove('drag')
+      if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0])
+    })
 
-                status.classList.add("visible");
-                statusText.textContent = `Uploading ${file.name}...`;
+    function upload(file) {
+      const form = new FormData()
+      form.append('video', file)
 
-                const xhr = new XMLHttpRequest();
-                xhr.open("POST", "/api/upload");
+      status.classList.add('visible')
+      renditionsDiv.innerHTML = ''
+      statusText.textContent = `Uploading ${file.name}...`
 
-                // Track upload progress
-                xhr.upload.onprogress = (e) => {
-                    if (e.lengthComputable) {
-                        const pct = ((e.loaded / e.total) * 100).toFixed(0);
-                        barFill.style.width = pct + "%";
-                        statusText.textContent = `Uploading ${file.name} — ${pct}%`;
-                    }
-                };
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', '/api/upload')
 
-                xhr.onload = () => {
-                    if (xhr.status === 200) {
-                        const data = JSON.parse(xhr.responseText);
-                        const info = data.info;
-                        statusText.innerHTML = `
-      ✅ <strong>${info.filename}</strong><br>
-      <span style="color:#666;font-size:13px">
-        ${info.width}×${info.height} •
-        ${info.duration.toFixed(1)}s •
-        ${info.codec}
-      </span><br>
-      <span style="color:#4f9eff;font-size:13px;margin-top:8px;display:inline-block">
-        🎬 Job: <code>${data.job_id}</code>
-      </span><br>
-      <span style="color:#aaa;font-size:13px;margin-top:4px;display:inline-block">
-        🎯 Encoding: ${data.renditions.join(", ")}
-      </span><br>
-      <span style="color:#666;font-size:12px;margin-top:4px;display:inline-block">
-        Watch your terminal. Output: <code>./output/${data.job_id}/</code>
-      </span>
-    `;
-                    } else {
-                        statusText.textContent = `❌ Failed: ${xhr.responseText}`;
-                    }
-                };
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable) {
+          uploadBar.style.width = (e.loaded / e.total * 100) + '%'
+        }
+      }
 
-                xhr.onerror = () => (statusText.textContent = "❌ Network error");
-                xhr.send(form);
-            }
-        </script>
-    </body>
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          const data = JSON.parse(xhr.responseText)
+          statusText.innerHTML = `🎬 <strong>${data.info.filename}</strong> — Job: <code style="font-size:12px;color:#666">${data.job_id}</code>`
+          uploadBar.style.width = '100%'
+          uploadBar.classList.add('done')
+
+          // Create a progress row per rendition
+          data.renditions.forEach(name => {
+            renditionsDiv.innerHTML += `
+              <div class="rendition" data-rendition="${name}">
+                <div class="rendition-header">
+                  <span class="rendition-name">${name}</span>
+                  <span class="rendition-pct">0%</span>
+                </div>
+                <div class="bar"><div class="bar-fill"></div></div>
+              </div>
+            `
+          })
+
+          // 🆕 Subscribe to live progress events
+          listenForProgress(data.job_id)
+        } else {
+          statusText.textContent = `❌ Failed: ${xhr.responseText}`
+        }
+      }
+
+      xhr.onerror = () => statusText.textContent = '❌ Network error'
+      xhr.send(form)
+    }
+
+    // 🆕 SSE listener — updates progress bars in real time
+    function listenForProgress(jobID) {
+      const es = new EventSource(`/api/events/${jobID}`)
+
+      es.onmessage = event => {
+        const data = JSON.parse(event.data)
+
+        if (data.event === 'progress') {
+          const row = document.querySelector(`[data-rendition="${data.rendition}"]`)
+          if (!row) return
+          const bar = row.querySelector('.bar-fill')
+          const pct = row.querySelector('.rendition-pct')
+          bar.style.width = data.percent + '%'
+          pct.textContent = data.percent.toFixed(0) + '%'
+
+          if (data.done) {
+            bar.classList.add('done')
+            pct.classList.add('done')
+            pct.textContent = '✓ 100%'
+          }
+        }
+
+        if (data.event === 'done') {
+          statusText.innerHTML += ' <span style="color:#4ade80">✅ All done!</span>'
+          es.close()
+        }
+
+        if (data.event === 'error') {
+          statusText.innerHTML += ` <span style="color:#f87171">❌ ${data.error}</span>`
+          es.close()
+        }
+      }
+
+      es.onerror = () => {
+        console.warn('SSE connection lost')
+      }
+    }
+  </script>
+</body>
 </html>
