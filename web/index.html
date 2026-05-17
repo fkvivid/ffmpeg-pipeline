@@ -1,182 +1,69 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>ffmpeg-pipeline</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui; background: #0f0f0f; color: #e5e5e5; padding: 40px; min-height: 100vh; }
-    h1 { color: #4f9eff; margin-bottom: 24px; }
-
-    #dropzone {
-      border: 2px dashed #333;
-      border-radius: 16px;
-      padding: 48px 32px;
-      text-align: center;
-      cursor: pointer;
-      transition: all 0.2s;
-      max-width: 600px;
-    }
-    #dropzone:hover, #dropzone.drag {
-      border-color: #4f9eff;
-      background: rgba(79,158,255,0.05);
-    }
-    #dropzone .icon { font-size: 36px; margin-bottom: 8px; }
-    #dropzone h2 { margin-bottom: 4px; font-weight: 500; font-size: 18px; }
-    #dropzone p { color: #666; font-size: 13px; }
-    input[type="file"] { display: none; }
-
-    #status {
-      margin-top: 24px;
-      padding: 20px 24px;
-      background: #161616;
-      border: 1px solid #222;
-      border-radius: 12px;
-      max-width: 600px;
-      display: none;
-    }
-    #status.visible { display: block; }
-    #statusText { font-size: 14px; margin-bottom: 4px; }
-
-    .rendition {
-      margin-top: 14px;
-    }
-    .rendition-header {
-      display: flex; justify-content: space-between;
-      font-size: 12px; margin-bottom: 4px;
-    }
-    .rendition-name { color: #aaa; }
-    .rendition-pct { color: #4f9eff; font-weight: 500; }
-    .rendition-pct.done { color: #4ade80; }
-    .bar { background: #222; border-radius: 99px; height: 6px; overflow: hidden; }
-    .bar-fill {
-      background: #4f9eff; height: 100%; width: 0%;
-      transition: width 0.4s ease;
-    }
-    .bar-fill.done { background: #4ade80; }
-
-    .upload-bar { margin-top: 8px; }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard · ffmpeg-pipeline</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/app.css" />
 </head>
 <body>
-  <h1>🎬 ffmpeg-pipeline</h1>
+  <header class="app-header">
+    <div class="app-header__inner">
+      <a href="/" class="app-logo">
+        <span class="app-logo__mark">▶</span>
+        ffmpeg-pipeline
+      </a>
+      <nav class="app-nav">
+        <a href="/" class="active">Dashboard</a>
+      </nav>
+    </div>
+  </header>
 
-  <div id="dropzone">
-    <div class="icon">📹</div>
-    <h2>Drop a video here</h2>
-    <p>or click to choose</p>
-    <input type="file" id="fileInput" accept="video/*" />
-  </div>
+  <main class="app-main">
+    <div class="page-title">
+      <h1>Encoding dashboard</h1>
+      <p>Upload a source file, encode an HLS ladder, and score quality with VMAF.</p>
+    </div>
 
-  <div id="status">
-    <div id="statusText">Uploading...</div>
-    <div class="bar upload-bar"><div class="bar-fill" id="uploadBar"></div></div>
-    <div id="renditions"></div>
-  </div>
+    <section class="card">
+      <h2 class="card__title">Upload</h2>
+      <div id="dropzone" class="dropzone">
+        <div class="dropzone__icon">📹</div>
+        <h2>Drop a video here</h2>
+        <p>MP4, MOV, MKV · max 10 GB</p>
+        <input type="file" id="fileInput" accept="video/*" />
+      </div>
 
-  <script>
-    const dropzone = document.getElementById('dropzone')
-    const fileInput = document.getElementById('fileInput')
-    const status = document.getElementById('status')
-    const statusText = document.getElementById('statusText')
-    const uploadBar = document.getElementById('uploadBar')
-    const renditionsDiv = document.getElementById('renditions')
+      <div id="progressPanel" class="progress-panel">
+        <p id="statusText" class="progress-panel__status">Uploading…</p>
+        <div class="bar upload-bar"><div class="bar-fill" id="uploadBar"></div></div>
+        <div id="renditions"></div>
+      </div>
+    </section>
 
-    dropzone.addEventListener('click', () => fileInput.click())
-    fileInput.addEventListener('change', () => { if (fileInput.files[0]) upload(fileInput.files[0]) })
+    <section class="card">
+      <h2 class="card__title">Job history</h2>
+      <p id="historyEmpty" class="empty-state hidden">No jobs yet. Upload a video to start your first encode.</p>
+      <div id="historyTable" class="table-wrap hidden">
+        <table>
+          <thead>
+            <tr>
+              <th>Video</th>
+              <th>Status</th>
+              <th>VMAF</th>
+              <th>Created</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
 
-    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag') })
-    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'))
-    dropzone.addEventListener('drop', e => {
-      e.preventDefault()
-      dropzone.classList.remove('drag')
-      if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0])
-    })
-
-    function upload(file) {
-      const form = new FormData()
-      form.append('video', file)
-
-      status.classList.add('visible')
-      renditionsDiv.innerHTML = ''
-      statusText.textContent = `Uploading ${file.name}...`
-
-      const xhr = new XMLHttpRequest()
-      xhr.open('POST', '/api/upload')
-
-      xhr.upload.onprogress = e => {
-        if (e.lengthComputable) {
-          uploadBar.style.width = (e.loaded / e.total * 100) + '%'
-        }
-      }
-
-      xhr.onload = () => {
-        if (xhr.status === 200) {
-          const data = JSON.parse(xhr.responseText)
-          statusText.innerHTML = `🎬 <strong>${data.info.filename}</strong> — Job: <code style="font-size:12px;color:#666">${data.job_id}</code>`
-          uploadBar.style.width = '100%'
-          uploadBar.classList.add('done')
-
-          // Create a progress row per rendition
-          data.renditions.forEach(name => {
-            renditionsDiv.innerHTML += `
-              <div class="rendition" data-rendition="${name}">
-                <div class="rendition-header">
-                  <span class="rendition-name">${name}</span>
-                  <span class="rendition-pct">0%</span>
-                </div>
-                <div class="bar"><div class="bar-fill"></div></div>
-              </div>
-            `
-          })
-
-          // 🆕 Subscribe to live progress events
-          listenForProgress(data.job_id)
-        } else {
-          statusText.textContent = `❌ Failed: ${xhr.responseText}`
-        }
-      }
-
-      xhr.onerror = () => statusText.textContent = '❌ Network error'
-      xhr.send(form)
-    }
-
-    // 🆕 SSE listener — updates progress bars in real time
-    function listenForProgress(jobID) {
-      const es = new EventSource(`/api/events/${jobID}`)
-
-      es.onmessage = event => {
-        const data = JSON.parse(event.data)
-
-        if (data.event === 'progress') {
-          const row = document.querySelector(`[data-rendition="${data.rendition}"]`)
-          if (!row) return
-          const bar = row.querySelector('.bar-fill')
-          const pct = row.querySelector('.rendition-pct')
-          bar.style.width = data.percent + '%'
-          pct.textContent = data.percent.toFixed(0) + '%'
-
-          if (data.done) {
-            bar.classList.add('done')
-            pct.classList.add('done')
-            pct.textContent = '✓ 100%'
-          }
-        }
-
-        if (data.event === 'done') {
-          statusText.innerHTML += ' <span style="color:#4ade80">✅ All done!</span>'
-          es.close()
-        }
-
-        if (data.event === 'error') {
-          statusText.innerHTML += ` <span style="color:#f87171">❌ ${data.error}</span>`
-          es.close()
-        }
-      }
-
-      es.onerror = () => {
-        console.warn('SSE connection lost')
-      }
-    }
-  </script>
+  <script type="module" src="/static/js/dashboard.js"></script>
 </body>
 </html>

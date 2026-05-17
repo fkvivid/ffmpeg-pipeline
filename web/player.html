@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Player · ffmpeg-pipeline</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-header__inner">
+      <a href="/" class="app-logo">
+        <span class="app-logo__mark">▶</span>
+        ffmpeg-pipeline
+      </a>
+      <nav class="app-nav">
+        <a href="/">Dashboard</a>
+        <a href="#" class="active">Player</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="app-main player-layout">
+    <div class="page-title">
+      <h1 id="pageTitle">Loading…</h1>
+    </div>
+
+    <section class="card">
+      <video id="video" controls playsinline autoplay></video>
+
+      <div class="player-controls">
+        <label for="qualitySelect">Quality</label>
+        <select id="qualitySelect">
+          <option value="-1">Auto (ABR)</option>
+        </select>
+        <label for="bandwidthSelect">Simulated bandwidth</label>
+        <select id="bandwidthSelect" title="Caps ABR so you can see quality switch without throttling your whole connection">
+          <option value="0">No limit (real network)</option>
+          <option value="400000">400 kbps · ~360p</option>
+          <option value="1000000">1 Mbps · ~480p</option>
+          <option value="2500000">2.5 Mbps · ~720p</option>
+          <option value="5000000">5 Mbps · ~1080p</option>
+        </select>
+        <span id="currentLevel" style="font-size:0.85rem;color:var(--text-dim)"></span>
+      </div>
+      <p class="panel-footnote" style="margin-top:12px">
+        Simulated bandwidth caps the highest rung ABR can choose. For real latency and packet loss,
+        use Chrome DevTools → Network → Throttling (e.g. Fast 3G).
+      </p>
+    </section>
+
+    <section class="card panel hidden" id="infoPanel">
+      <h3>Stream variants</h3>
+      <div id="infoContent"></div>
+    </section>
+
+    <section class="card panel hidden" id="vmafPanel">
+      <h3>VMAF quality scores</h3>
+      <div id="vmafContent"></div>
+      <p class="panel-footnote">
+        VMAF (Video Multi-method Assessment Fusion) is Netflix's perceptual quality metric.
+        90+ excellent · 80–90 good · 70–80 fair · below 70 poor.
+      </p>
+    </section>
+  </main>
+
+  <script type="module" src="/static/js/player.js"></script>
+</body>
+</html>
